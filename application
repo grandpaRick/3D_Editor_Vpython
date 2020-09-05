@@ -1,0 +1,538 @@
+GlowScript 2.9 VPython
+# Basic 3D Editor Tool
+# A POC that vpython resources could be explored further and used to create a 3D editor tool
+# Development inprogress
+
+# by Desmond Umebeh 7/5/2020
+# Email: desmondumebeh@gmail.com
+
+
+
+#############################################Program Classes#########################################################
+
+# Editor class
+class editor:
+    
+    def __init__(self,objInstance):
+
+        self.GRID_TOTAL_LENGTH = 10
+        self.GRID_STEP_SIZE = 0.5
+        self.GRID_HALF_LENGTH = self.GRID_TOTAL_LENGTH/2
+        self.gridLimit = self.GRID_HALF_LENGTH+self.GRID_STEP_SIZE
+        self.gridlines = [] # hold objects which makeup the grid
+        self.gridLineHeight = 0.02*self.GRID_STEP_SIZE; #height
+        self.gridLineWidth = 0.02*self.GRID_STEP_SIZE; #width
+        self.scene = canvas(background=color.black) # Setup scene default background color
+        self.sceneColorSwitch = True # switch to enable scene background color toggle
+        self.snapSwitch = False # snap to grid switch
+        self.rotateSwitch = False # rotate switch
+        self.groupSwitch = False # object grouping switch
+        self.currentMousePosition = None # track current mouse position on the scene
+        self.lastMousePosition = None # track last mouse position on the scene
+        self.objInstance = objInstance # hold an instance of class object3D
+        self.read = None #Hold content of loaded file
+        self.objList = [] #Holds list of objects on the scene
+        
+
+        
+    #editor class method: Draw grid
+    def drawGrid(self):
+        for eachStraightLine_Back in range(-self.GRID_HALF_LENGTH, self.gridLimit, self.GRID_STEP_SIZE):
+            self.gridlines.append(box( pos=vector(eachStraightLine_Back,0,-self.GRID_HALF_LENGTH), 
+                                        size=vector(self.GRID_TOTAL_LENGTH,self.gridLineHeight,self.gridLineWidth),
+                                        axis=vector(0,1,0), color = color.gray(.9),pickable = False)) #draw boxes and add to grindline list
+            
+        for eachCrossedLine_Back in range(-self.GRID_HALF_LENGTH, self.gridLimit, self.GRID_STEP_SIZE):
+            self.gridlines.append(box( pos=vector(0,eachCrossedLine_Back,-self.GRID_HALF_LENGTH), 
+                                        size=vector(self.GRID_TOTAL_LENGTH,self.gridLineHeight,self.gridLineWidth), 
+                                        axis=vector(1,0,0), color = color.gray(.9),pickable = False)) #draw boxes and add to grindline list
+                                    
+        ####################################################show bottom grid############################################################
+        for eachStraightLine_Bottom in range(-self.GRID_HALF_LENGTH, self.gridLimit, self.GRID_STEP_SIZE):
+            self.gridlines.append(box( pos=vector(eachStraightLine_Bottom,-self.GRID_HALF_LENGTH,0), 
+                                        size=vector(self.GRID_TOTAL_LENGTH,self.gridLineHeight,self.gridLineWidth), 
+                                        axis=vector(0,0,1), color = color.gray(.9),pickable = False)) #draw boxes and add to grindline list
+                                    
+        for eachCrossedLine_Bottom in range(-self.GRID_HALF_LENGTH, self.gridLimit, self.GRID_STEP_SIZE):
+            self.gridlines.append(box( pos=vector(0,-self.GRID_HALF_LENGTH,eachCrossedLine_Bottom), 
+                                        size=vector(self.GRID_TOTAL_LENGTH,self.gridLineHeight,self.gridLineWidth), 
+                                        color = color.gray(.9),pickable = False))  #draw boxes and add to grindline list
+            
+        ####################################################show right grid#############################################################
+        for eachStraightLine_Right in range(-self.GRID_HALF_LENGTH, self.gridLimit, self.GRID_STEP_SIZE):
+            self.gridlines.append(box( pos=vector(self.GRID_HALF_LENGTH,0,eachStraightLine_Right), 
+                                        size=vector(self.GRID_TOTAL_LENGTH,self.gridLineHeight,self.gridLineWidth), 
+                                        axis=vector(0,1,0), color = color.gray(.9),pickable = False)) #draw boxes and add to grindline list
+          
+        for eachCrossedLine_Bottom in range(-self.GRID_HALF_LENGTH, self.gridLimit, self.GRID_STEP_SIZE):
+            self.gridlines.append(box( pos=vector(self.GRID_HALF_LENGTH,eachCrossedLine_Bottom,0), 
+                                        size=vector(self.GRID_TOTAL_LENGTH,self.gridLineHeight,self.gridLineWidth), 
+                                        axis=vector(0,0,1), color = color.gray(.9),pickable = False)) #draw boxes and add to grindline list
+    
+    #editor class method: setup editor initial scene
+    def setScene(self): 
+        self.scene.range= 9.5; # Prevent scene autoscaling
+        self.scene.camera.pos = vec(-11.216, -1.99808e-16, 12.0396) #set camera position
+        self.scene.camera.axis = vec(11.216, 1.99808e-16, -12.0396) #set camera axis
+    
+    #editor class method: draw 3D axes       
+    def draw3DAxisLines(self):
+        xAxis = arrow(pos=vec(5,-5,-5), axis=vec(-12,0,0), shaftwidth = 0.05, 
+                headwidth = .5, headlength =1, color=color.red,pickable = False) #draw x-axis idicator
+        xAxisText = text(text='x', color=xAxis.color, pos=vec(-6.5,-4.5,-5), billboard = True) #x-axis label
+        
+        yAxis = arrow(pos=vec(5,-5,-5), axis=vec(0,12,0), shaftwidth = 0.05, 
+                        headwidth = .5, headlength =1, color=color.green,pickable = False) #draw y-axis indicator
+        yAxisText = text(text='y', color=yAxis.color, pos=vec(4.2,6.5,-5), billboard = True) #y-axis label
+        
+        zAxis = arrow(pos=vec(5,-5,-5), axis=vec(0,0,12), shaftwidth = 0.05, 
+                        headwidth = .5, headlength =1, color=color.blue,pickable = False) #draw z-axis indicator
+        zAxisText = text(text='z', color=zAxis.color, pos=vec(5.2,-4.2,6.5), billboard = True) #z-axis label
+        
+    #editor class method: implement snap to grid
+    def snap(self, objectPos):        
+        objectPos.x = self.GRID_STEP_SIZE*round(objectPos.x/self.GRID_STEP_SIZE) #modify x pos in steps of 0.5units
+        objectPos.y = self.GRID_STEP_SIZE*round(objectPos.y/self.GRID_STEP_SIZE) #modify y pos in steps of 0.5units
+        objectPos.z = self.GRID_STEP_SIZE*round(objectPos.z/self.GRID_STEP_SIZE) #modify z pos in steps of 0.5units
+        return objectPos # return snapped position
+    
+    
+    #editor class method: allow toggle of snap to grid switch
+    def checkSnap(self):
+        if !self.isSnap():
+            self.snapSwitch = True 
+        else:
+            self.snapSwitch = False 
+
+            
+    #editor class method: get snap switch state        
+    def isSnap(self):
+        return self.snapSwitch
+    
+    #editor class method: get object grouping switch state
+    def isGroupEnable(self): 
+        return self.groupSwitch
+    
+    #editor class method: allow toggle of object grouping switch
+    def groupObj(self):
+        if !self.isGroupEnable():
+           self.groupSwitch = True
+        else:
+            self.groupSwitch = False
+    
+    #editor class method: check object boundaries within grid
+    def enableObjScope(self,object): 
+        if ((object.x <= (self.GRID_HALF_LENGTH)) & (object.x >= -(self.GRID_HALF_LENGTH)) & (object.y <= (self.GRID_HALF_LENGTH)) 
+        & (object.y >= -(self.GRID_HALF_LENGTH)) & (object.z <= (self.GRID_HALF_LENGTH)) & (object.z >= -(self.GRID_HALF_LENGTH))): #limit object scope to grid
+            return True
+     
+    #editor class method: toggle editor scene color between day & night  
+    def toggleScene(self): 
+        if self.sceneColorSwitch: #check if switch is set to true
+            self.scene.background= color.white #change editor scene color to white
+            self.sceneColorSwitch = False #change switch to false
+            self.sceneColorButton.text ="Night" #change displayed text on widget to "Night"
+        else:                                   #otherwise
+            self.scene.background= color.black #change editor scene color to black
+            self.sceneColorSwitch = True #change switch to true
+            self.sceneColorButton.text="Day" #change displayed text on widget to "Day"
+    
+    #editor class method: get current object picked by mouse pointer
+    def getCurrentObj(self):
+        theObj = self.scene.mouse.pick            
+        return theObj 
+    
+    #editor class method: get editor grid half length
+    def getGridHalfLength(self):
+        return self.GRID_HALF_LENGTH
+        
+    #editor class method: create user selected object from menu widget    
+    def createObj(self):
+        self.objInstance.create(self.objMenu.index) #call create method of class object3D to draw object
+        self.objMenu.index = 0 #reset widget menu
+        
+    #editor class method: change selected object color
+    def changeColor(self):
+        if self.getCurrentObj() != None: #check selected object, ignore if none
+            self.objInstance.objColor(self.getCurrentObj(),self.colorMenu.index)#call objColor method of class object3D to change to selected color
+        self.colorMenu.index = 0 #reset widget menu
+        
+    #editor class method: adjust sliders to match current object properties    
+    def resetSliders(self):
+        if isinstance(self.getCurrentObj(),sphere): #check if current object is sphere
+            self.length_slider.value = 0 #reset length slider value to zero
+            self.height_slider.value = 0 #reset height slider value to zero
+            self.width_slider.value = 0 #reset width slider value to zero
+            self.length_slider.disabled = True #gray out length slider
+            self.height_slider.disabled = True #gray out height slider
+            self.width_slider.disabled = True #gray out width slider
+            self.radius_slider.disabled = False #enable radius slider
+        else:
+            self.radius_slider.value = 0 #reset radius slider value to zero
+            self.length_slider.disabled = False #enable length slider
+            self.height_slider.disabled = False #enable height slider
+            self.width_slider.disabled = False #enable width slider
+            self.radius_slider.disabled = True #gray out radius slider
+
+    #editor class method: adjust object dimesions to slider values   
+    def radiusSlide(self):
+        self.getCurrentObj().radius = self.radius_slider.value #set object radius to radius_slider value
+        
+    def lengthSlide(self):
+        self.getCurrentObj().length = self.length_slider.value #set object length to length_slider value
+        
+    def heightSlide(self):
+        self.getCurrentObj().height = self.height_slider.value #set object height to height_slider value
+    
+    def widthSlide(self):
+        self.getCurrentObj().width = self.width_slider.value #set object width to width_slider value
+        
+
+    #editor class method: Adjust sliders to inhereit current object dimension values   
+    def getObjSliderSet(self):
+        self.radius_slider.value = self.getCurrentObj().radius
+        self.length_slider.value = self.getCurrentObj().length
+        self.width_slider.value = self.getCurrentObj().width
+        self.height_slider.value = self.getCurrentObj().height
+        self.opacity_slider.value = self.getCurrentObj().opacity
+        
+        
+    #editor class method: toggle rotate switch      
+    def checkRotate(self):    
+        if !self.rotateSwitch:
+            self.rotateSwitch = True            
+        else:
+            self.rotateSwitch = False
+     
+    #editor class method: get rotate switch state
+    def isRotate(self):
+        return self.rotateSwitch
+     
+    #editor class method: set last mouse position
+    def setLastMousePos(self): 
+        self.lastMousePosition = self.scene.mouse.project(normal=vec(0,0,1)) #get and project mouse position to xy plane when right click button pressed
+    
+    #editor class method: object rotation 
+    def rotateObj(self,object):        
+        self.currentMousePosition = self.scene.mouse.project(normal=vec(0,0,1)) #project current mouse position onto a 2D plane
+        self.move = self.currentMousePosition - self.lastMousePosition # defines the resultant vector
+        
+#    if (scene.mouse.pick!= None):                                                                                                                                                                                                                                                                                                 
+        object.rotate(angle=(-self.move.mag)*0.1, axis=self.move.cross(vec(0,0,1))) #rotate object
+        self.lastMousePosition = self.currentMousePosition #update last mouse position
+    
+    #editor class method: Clear selected object
+    def clearObj(self):
+#        self.objInstance.remove(self.getCurrentObj())
+        if self.getCurrentObj() != None:
+            self.objInstance.removeObj(self.getCurrentObj()) #delete current object
+     
+    #editor class method: return mouse position
+    def getMousePosition(self):
+        return self.scene.mouse.pos 
+
+    #editor class method: object cloning
+    def cloneObj(self):
+        if self.getCurrentObj() != None:
+            self.getCurrentObj().clone(pos =vec(-2,0,0)) #clones current object.
+            
+    #editor class method: modify current object opacity
+    def objOpacity(self):
+        if self.getCurrentObj() != None:
+            self.getCurrentObj().opacity = self.opacity_slider.value #set object transparency to opacity slider value
+    
+    #editor class method: File Operations
+    def readFile(self):
+            if self.fileMenu.index == 1:
+                self.fileMenu.index = 0 #reset menu
+                print_options(delete=True) #clear printing region
+                self.read = read_local_file(self.scene.title_anchor) #trigger read operation
+                print("-------------------------------------------------------------------")
+                print("File Name: "+self.read.name) # The file name
+                print("File Size: "+self.read.size+"kb") # File size in bytes
+                print("File Type: "+self.read.type) # What kind of file
+                print("Creation Date: " + self.read.date) # Creation date if available
+                print("-------------------------------------------------------------------")
+                print(self.read.text) # The file contents
+                print("################ End #################")
+            
+            if self.fileMenu.index == 2:
+                self.fileMenu.index = 0 #reset menu
+                xfile = winput(prompt ="Import JavaScript File", 
+                                type = "string", text = "Enter directory") #create a widget input allowing user to enter file directory
+                self.get_library(xfile) #import javascript file
+    
+    #editor class method: resused method, points to actual called method for each widget
+    def clickThrough(self, thisWidget):
+        eval(thisWidget.method)
+        
+    #editor class method: class widgets
+    def widgetControl(self, editor_object):
+        
+        self.sceneColorButton = button(text="Day", pos=self.scene.title_anchor, bind=editor_object.clickThrough, editor_object=editor_object, 
+                                        method="thisWidget.editor_object.toggleScene()") #Switch scene background color
+                                        
+            
+        self.objMenu = menu( choices=['Choose a 3D object','Sphere','Box','Cylinder','Cone'], bind=editor_object.clickThrough,
+                                editor_object=editor_object, method="thisWidget.editor_object.createObj()") #Creates object menu, allows user select oject to display
+        self.scene.append_to_caption('   ')
+        
+        self.colorMenu = menu( choices=['Choose object  color','Red', 'Green', 'Blue','default'],bind=editor_object.clickThrough,
+                                editor_object=editor_object, method="thisWidget.editor_object.changeColor()" )#Modify object color
+        self.scene.append_to_caption('   ')
+                                    
+        self.snapCheckBox = checkbox(bind=editor_object.clickThrough, text='Snap to grid',editor_object=editor_object, 
+                                    method="thisWidget.editor_object.checkSnap()")#Enable snap to grid feature
+        self.scene.append_to_caption('   ')
+        
+        self.compoundCheckBox = checkbox(bind=editor_object.clickThrough, text='Group Objects',editor_object=editor_object, 
+                                    method="thisWidget.editor_object.groupObj()")#Trigger the compound object feature
+        self.scene.append_to_caption('   ')
+        
+        self.rotateCheckBox = checkbox(bind=editor_object.clickThrough, text='Rotate Object',editor_object=editor_object, 
+                                    method="thisWidget.editor_object.checkRotate()")#Enable rotation
+        self.scene.append_to_caption('\n\n')
+        
+        self.radius_slider = slider( bind=editor_object.clickThrough, min=0.1, max=5,editor_object=editor_object, 
+                                    method="thisWidget.editor_object.radiusSlide()")#Radius slider bar
+        self.scene.append_to_caption('Radius\n')
+        
+        self.length_slider = slider( bind=editor_object.clickThrough, min=0.1, max=10,editor_object=editor_object, 
+                                    method="thisWidget.editor_object.lengthSlide()")#Length slider bar
+        self.scene.append_to_caption('Length  ')
+        
+        self.height_slider = slider( bind=editor_object.clickThrough , min=0.1, max=10,editor_object=editor_object, 
+                                    method="thisWidget.editor_object.heightSlide()")#Height slider bar
+        self.scene.append_to_caption('Height  ')
+        
+        self.width_slider = slider( bind=editor_object.clickThrough, min=0.1, max=10,editor_object=editor_object, 
+                                    method="thisWidget.editor_object.widthSlide()")#Width slider bar
+        self.scene.append_to_caption('Width\n\n')
+        
+        self.opacity_slider = slider( bind=editor_object.clickThrough, min=0.2, max=1,editor_object=editor_object, 
+                                    method="thisWidget.editor_object.objOpacity()")#call method to adjust object opacity
+        self.scene.append_to_caption('Opacity\n\n')
+        
+        self.fileMenu = menu( pos =self.scene.title_anchor, choices=['File Operation','Load File', 'Import File'],bind=editor_object.clickThrough,
+                                editor_object=editor_object, method="thisWidget.editor_object.readFile()" )#File operation
+        
+        self.cloneButton = button(text="Clone Object",  bind=editor_object.clickThrough, 
+                                    editor_object=editor_object, method="thisWidget.editor_object.cloneObj()") #Trigger object cloning
+        self.scene.append_to_caption(' ')
+        
+        self.deleButton = button(text="Delete",  bind=editor_object.clickThrough, 
+                                    editor_object=editor_object, method="thisWidget.editor_object.clearObj()") #call method to delete currrent object
+        
+
+########################################################class trackLine###########################################################################
+class trackLine:
+    def __init__(self,editorInstance):
+        self.editorInstance = editorInstance
+        self.labelObjPosition = label( pos=scene.mouse.pos, text=scene.mouse.pos, box = False,visible = False, opacity = 0)
+        
+        #Define track lines on all 3 dimensional axis, not visible by default
+        self.trackLineX = box(pos=vector(0,0,0), size=vector(self.editorInstance.GRID_HALF_LENGTH,5*self.editorInstance.gridLineHeight,
+                                5*self.editorInstance.gridLineWidth), color = color.red, visible = False, axis = vector(1,0,0))
+        self.trackLineY = box(pos=vector(0,0,0), size=vector(self.editorInstance.GRID_HALF_LENGTH,5*self.editorInstance.gridLineHeight,
+                                5*self.editorInstance.gridLineWidth), color = color.green, visible = False, axis = vector(0,1,0))
+        self.trackLineZ = box(pos=vector(0,0,0), size=vector(self.editorInstance.GRID_HALF_LENGTH,5*self.editorInstance.gridLineHeight,
+                                5*self.editorInstance.gridLineWidth), color = color.blue, visible = False, axis = vector(0,0,1))
+    
+    #trackLine class method: show track lines
+    def showTrackLine(self,obj):
+        self.trackLineX.visible = True #Turn on x-axis track line visibility
+        self.trackLineY.visible = True #Turn on y-axis track line visibility
+        self.trackLineZ.visible = True #Turn on z-axis track line visibility
+        
+        #Calculate and track object position along the x-axis
+        self.trackLineX.pos.x = ((self.editorInstance.GRID_HALF_LENGTH + obj.pos.x)/2)
+        self.trackLineX.pos.y = (obj.pos.y)
+        self.trackLineX.pos.z = (obj.pos.z)
+        self.trackLineX.size.x = self.editorInstance.GRID_HALF_LENGTH - obj.pos.x
+        
+        #Calculate and track object position along the y-axis
+        self.trackLineY.pos.x = (obj.pos.x)
+        self.trackLineY.pos.y = (-self.editorInstance.GRID_HALF_LENGTH + obj.pos.y)/2
+        self.trackLineY.pos.z = (obj.pos.z)
+        self.trackLineY.size.x = self.editorInstance.GRID_HALF_LENGTH + obj.pos.y 
+        
+        #Calculate and track object position along the z-axis
+        self.trackLineZ.pos.x = (obj.pos.x)
+        self.trackLineZ.pos.y = (obj.pos.y)
+        self.trackLineZ.pos.z = (-self.editorInstance.GRID_HALF_LENGTH + obj.pos.z)/2
+        self.trackLineZ.size.x = self.editorInstance.GRID_HALF_LENGTH + obj.pos.z
+     
+    #trackLine class method: display object position label on scene
+    def showObjPos(self,obj):
+        self.labelObjPosition.visible = True
+        self.labelObjPosition.pos = obj.pos
+        self.labelObjPosition.text.x = obj.pos.x
+        self.labelObjPosition.text.y = obj.pos.y
+        self.labelObjPosition.text.z = obj.pos.z
+     
+    #trackLine class method: disable object track line 
+    def removeTrackLine(self):        
+        self.trackLineX.visible = False #Turn on x-axis track line visibility
+        self.trackLineY.visible = False #Turn on y-axis track line visibility
+        self.trackLineZ.visible = False #Turn on z-axis track line visibility
+    
+    #trackLine class method: disable object position label
+    def removeObjPos(self):
+        self.labelObjPosition.visible = False
+        
+############################################################Class object3D##########################################################
+        
+class object3D:
+    
+    def __init__ (self):
+        self.objRadius = 0.5 #default object radius
+        self.objLength = 0.5 #default object length
+        self.objHeight = 0.5 #default object height
+        self.objWidth = 0.5  #default object width
+    
+    #object3D class method: draw selected object
+    def create(self,index):
+        
+        if index==1:
+            return sphere(pos=vec(0,0,0), radius = self.objRadius, visible = True, pickable = True)
+        if index==2:
+            return box(pos=vec(0,0,0), length=self.objLength,height=self.objHeight, width=self.objWidth, visible = True, pickable = True) #display sphere on grid
+        if index==3:
+            return cylinder(pos=vec(0,0,0), radius = self.objRadius, axis= vec(self.objLength,self.objHeight,self.objWidth), visible = True, pickable = True) #display
+        if index==4:
+            return cone(pos=vector(0,0,0),radius = self.objRadius, axis= vec(self.objLength,self.objHeight,self.objWidth), visible = True, pickable = True) #display sphere on grid
+    
+     #object3D class method: modify object color
+    def objColor(self,obj,index): 
+        if index ==1:
+            obj.color = color.red #set red
+        if index ==2:   
+            obj.color = color.green #set green
+        if index ==3:
+            obj.color = color.blue #set blue
+        if index == 4:
+            obj.color = vec(1,1,1) #set to default gray color
+            
+    #object3D class method: delete object
+    def removeObj(self,obj): 
+        obj.pickable = False
+        obj.visible = False
+        del obj
+     
+    #object3D class method: get object  type
+    def objType(self,obj):
+        return type(obj)
+
+
+######################################Program Main########################################################
+
+myObj3D = object3D() #create an instance of object3D class
+thisEditor = editor(myObj3D) #instantiate an editor
+thisEditor.setScene() #create and setup scene
+thisEditor.drawGrid() #draw 3D grid on scene
+thisEditor.draw3DAxisLines() #draw 3D lines on scene
+thisEditor.widgetControl(thisEditor) #setup associated widgets
+obj = None # object pointer
+thisTrackLine = trackLine(thisEditor) #instantiate trackline
+
+
+#Binding functions
+thisEditor.scene.bind("mousemove",movemoveActions) # Call function to modify curent object position using the mouse
+thisEditor.scene.bind("mouseup",mouseupActions)
+thisEditor.scene.bind("mousedown", mousedownActions)
+thisEditor.scene.bind('keydown',keydownActions) # Call function to modify current object position using the keyboard direction keys
+thisEditor.scene.bind('keyup',mouseupActions) #Call dragFalse to disable object position modification.
+
+
+ 
+def mousedownActions():
+    global obj #allow modification to be made to object pointer
+    obj = thisEditor.getCurrentObj() #assign current object to object pointer
+    thisEditor.resetSliders() #adjust sliders to match current object properties 
+    thisEditor.getObjSliderSet()   #Adjust sliders to inhereit current object dimension values 
+    thisEditor.setLastMousePos() #get and project mouse position to xy plane when user press right mouse button
+
+    if thisEditor.isRotate(): #check if user enabled rotation
+        thisTrackLine.removeObjPos() #disable trackline on scene
+    else:
+        thisTrackLine.showObjPos(obj) #show current object position label
+    
+    if thisEditor.isGroupEnable(): #checks if user enabled object grouping
+        if thisEditor.getCurrentObj() != None:  #check if an object is selected 
+            thisEditor.objList.append(thisEditor.getCurrentObj()) #add user selected object to object list for grouping
+            
+            
+        
+    
+def movemoveActions():
+    global obj #allow modification to be made to object pointer
+    temp=thisEditor.getMousePosition() #temproary hold mouse position
+  
+    if thisEditor.isSnap(): #check if snap to grid is enabled by user
+        temp = thisEditor.snap(temp) #if true, round mouse position to snap on grid intersections        
+
+    if thisEditor.enableObjScope(temp): #check if mouse position falls within grid defined boundaries        
+        if thisEditor.isRotate(): #check if user enabled rotation
+            thisTrackLine.removeObjPos() #disable trackline on scene if rotation is enabled
+            thisEditor.rotateObj(obj) #rotate the object
+        else:
+            obj.pos=temp #update object position to mouse position on the grid if rotation is disabled    
+            thisTrackLine.showTrackLine(obj) #display object trackline
+            thisTrackLine.showObjPos(obj) #display object position label
+    
+        
+def mouseupActions():
+    global obj #allow modification to be made to object pointer
+    thisTrackLine.removeTrackLine() #remove object track lines
+    thisTrackLine.removeObjPos(obj) #remove object position label
+    
+
+def keydownActions():
+    global obj #allow modification to be made to object pointer
+    if obj != None: #check if object is selected 
+        temp = obj.pos #assign object position to a temproary variable       
+        dv = 0.05 #object move step value using keyboard
+        theKey = keysdown() #get the pressed key
+        if 'left' in theKey: #check if left directional key is pressed
+            temp.x-=dv #move object towards the left on thex-axis at step value of 0.05
+            if (temp.x < -thisEditor.getGridHalfLength()): #check grid boundaries
+                temp.x+=dv #if boundary value is surpassed modify to last value within grid boundary            
+        if 'right' in theKey: #check if right directional key is pressed
+            temp.x+=dv #move object towards the right on thex-axis at step value of 0.05
+            if (temp.x > thisEditor.getGridHalfLength()): #check grid boundaries
+                temp.x-=dv #if boundary value is surpassed modify to last value within grid boundary         
+        if 'alt' in theKey: #check if 'alt' key is pressed
+            if 'up' in theKey: #check if up directional key is pressed with the alt key
+                temp.z-=dv #move object away from the user along z-axis at step value of 0.05
+                if (temp.z < -thisEditor.getGridHalfLength()): #check grid boundaries
+                    temp.z+=dv #if boundary value is surpassed modify to last value within grid boundary 
+            if 'down' in theKey: #check if down directional key is pressed with the alt key
+                temp.z+=dv #move object towards the user along z-axis at step value of 0.05
+                if (temp.z > thisEditor.getGridHalfLength()): #check grid boundaries
+                    temp.z-=dv #if boundary value is surpassed modify to last value within grid boundary
+        elif 'up' in theKey: #check if up directional key is pressed
+            temp.y+=dv #move object upwards  on the y-axis at step value of 0.05
+            if (temp.y > thisEditor.getGridHalfLength()): #check grid boundaries
+                temp.y-=dv #if boundary value is surpassed modify to last value within grid boundary                
+        elif 'down' in theKey: #check if down directional key is pressed
+            temp.y-=dv #move object downwards  on the y-axis at step value of 0.05
+            if (temp.y < -thisEditor.getGridHalfLength()): #check grid boundaries
+                temp.y+=dv #if boundary value is surpassed modify to last value within grid boundary 
+                
+        # group objects in objList      
+        if 'ctrl' in theKey: #check if ctrl key is pressed by user
+                compound(thisEditor.objList) #group objects contained in list if ctrl key is pressed
+                thisEditor.objList = [] # clear object list
+
+        
+        #delete object if delete key is pressed
+        if 'delete' in theKey:
+            myObj3D.removeObj(obj) #delete object
+            obj = None
+            thisTrackLine.removeTrackLine() #disable trackline
+            thisTrackLine.removeObjPos(obj) #disable object position
+            
+        
+        obj.pos=temp #update object position
+        thisTrackLine.showTrackLine(obj)#show 3D trackline
+        thisTrackLine.showObjPos(obj) #print object position label on scene
